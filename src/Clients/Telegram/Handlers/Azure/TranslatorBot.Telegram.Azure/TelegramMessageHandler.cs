@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Sanet.Bots.Telegram.Azure.Extensions;
+using Sanet.Bots.Telegram.Azure.Services;
 using Sanet.Bots.Telegram.Services;
 using Telegram.Bot.Types;
 
@@ -34,8 +35,17 @@ public static class TelegramMessageHandler
                 log.LogError("TELEGRAM_BOT_TOKEN is null");
                 return new InternalServerErrorResult();
             }
+            var cosmosConnection = Environment.GetEnvironmentVariable("COSMOS_CONNECTION_STRING");
+            
+            if (string.IsNullOrEmpty(cosmosConnection))
+            {
+                log.LogError("COSMOS_CONNECTION_STRING is null");
+                return new InternalServerErrorResult();
+            }
 
-            var updateHandler = new TelegramUpdateHandler(log, telegramBotToken);
+            var cosmosService = new CosmosService(cosmosConnection, log);
+
+            var updateHandler = new TelegramUpdateHandler(telegramBotToken,cosmosService,log);
             var updateResult = await updateHandler.HandleUpdate(update);
 
             return updateResult.ToAzureActionResult(log);
