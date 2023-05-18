@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "Sanet.Bot.Telegram": {
+      "commandName": "Project",
+      "commandLineArgs": "--port 7155",
+      "launchBrowser": false
+    }
+  }
+}
