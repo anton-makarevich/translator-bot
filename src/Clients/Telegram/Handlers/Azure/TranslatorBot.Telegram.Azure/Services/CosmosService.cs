@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Net;
 using System.Threading.Tasks;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;
@@ -19,7 +20,7 @@ public class CosmosService : IDatabaseService
         _databaseId = "sanet-bot";
         _containerId = "translator-subscriptions";
         _logger = logger;
-        
+
         _cosmosClient = new CosmosClient(connectionString);
     }
 
@@ -27,31 +28,39 @@ public class CosmosService : IDatabaseService
     {
         var database = await _cosmosClient.CreateDatabaseIfNotExistsAsync(_databaseId);
         var container = await database.Database.CreateContainerIfNotExistsAsync(_containerId, "/groupId");
-        
+
         // Create a composite key by concatenating groupId and chatId
         var compositeKey = $"{item.GroupId}_{item.ChatId}";
 
         var itemToSave = new
         {
             id = compositeKey,
-            groupId=item.GroupId,
-            chatId=item.ChatId,
+            groupId = item.GroupId,
+            chatId = item.ChatId,
+            userId = item.UserId
         };
 
         var partitionKey = new PartitionKey(item.GroupId);
-        var response = await container.Container.CreateItemAsync(item, partitionKey);
-
-        if (response.StatusCode == System.Net.HttpStatusCode.Created)
+        try
         {
-            _logger.LogInformation("Object saved successfully!");
-            return true;
+            var response = await container.Container.CreateItemAsync(itemToSave, partitionKey);
+
+            if (response.StatusCode is HttpStatusCode.Created)
+            {
+                _logger.LogInformation("Object saved successfully!");
+                return true;
+            }
+        }
+        catch (CosmosException e)
+        {
+            _logger.LogError("{StatusCode}, {Message}", e.StatusCode, e.Message);
         }
 
-        _logger.LogError("{StatusCode}, {Message}",response.StatusCode,"Failed to save the object.");
         return false;
     }
-    
-    public async Task<IEnumerable<SubscriptionEntity>> QueryByGroupIdAsync(ulong groupId)
+
+
+    public async Task<IEnumerable<SubscriptionEntity>> GetSubscriptionsForGroup(ulong groupId)
     {
         var database = _cosmosClient.GetDatabase(_databaseId);
         var container = database.GetContainer(_containerId);

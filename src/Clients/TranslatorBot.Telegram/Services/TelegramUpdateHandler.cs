@@ -46,33 +46,47 @@ public class TelegramUpdateHandler
 
                     if (chatId < 0)
                     {
-                        _log.LogInformation("A message in the group");
+                        var groupId = (ulong)Math.Abs(chatId);
+                        _log.LogInformation("A message in the group {GroupId}", groupId);
 
-                        if (update.Message.Type != MessageType.ChatMembersAdded) return new UpdateHandlerResult(200);
-
-                        var member = update.Message?.NewChatMembers?.First();
-                        if (member == null)
+                        if (update.Message.Type == MessageType.ChatMembersAdded)
                         {
-                            _log.LogError("Member is null");
+                            var member = update.Message?.NewChatMembers?.First();
+                            if (member == null)
+                            {
+                                _log.LogError("Member is null");
+                            }
+
+                            _log.LogInformation($"New chat member {member.Username}");
+
+                            var inlineKeyboard = new InlineKeyboardMarkup(new[]
+                            {
+                                new[]
+                                {
+                                    InlineKeyboardButton.WithUrl("Subscribe for translations",
+                                        "https://t.me/SanetTranslatorBot")
+                                }
+                            });
+
+                            var welcomeMessage = $"Welcome, {member.FirstName}! "
+                                                 + "I can translate messages in this chat for you. Please send me a direct message (DM) if you're interested. "
+                                                 + $"Please use '/subscribe {groupId}' in a direct message to me";
+
+                            await _bot.SendTextMessageAsync(chatId, welcomeMessage, replyMarkup: inlineKeyboard);
+
+                            return new UpdateHandlerResult(200);
                         }
 
-                        _log.LogInformation($"New chat member {member.Username}");
-
-                        var inlineKeyboard = new InlineKeyboardMarkup(new[]
+                        
+                        if (update.Message.Type == MessageType.Text)
                         {
-                            new[]
-                            {
-                                InlineKeyboardButton.WithUrl("Subscribe for translations",
-                                    "https://t.me/SanetTranslatorBot")
-                            }
-                        });
-
-                        var welcomeMessage = $"Welcome, {member.FirstName}! "
-                                             + "I can translate messages in this chat for you. Please send me a direct message (DM) if you're interested. "
-                                             + $"Please use '/subscribe {Math.Abs(chatId)}' in a direct message to me";
-
-                        await _bot.SendTextMessageAsync(chatId, welcomeMessage, replyMarkup: inlineKeyboard);
-
+                            var subscriptions = await _databaseService.GetSubscriptionsForGroup(groupId);
+                            var tasks = subscriptions
+                                .Where(s => s.UserId != update.Message.From.Id)
+                                .Select(s => _bot.SendTextMessageAsync(s.ChatId, $"Message from {update.Message.From.FirstName}: {update.Message.Text}"));
+                            await Task.WhenAll(tasks);
+                        }
+                                                 
                         return new UpdateHandlerResult(200);
                     }
 
@@ -85,7 +99,7 @@ public class TelegramUpdateHandler
                             if (!ulong.TryParse(part.Trim(), out var id)) continue;
                             _log.LogInformation($"Subscribing to {id}");
                             
-                            var isSaved = await _databaseService.SaveSubscription(new SubscriptionEntity(id, chatId));
+                            var isSaved = await _databaseService.SaveSubscription(new SubscriptionEntity(id, chatId, update.Message.From.Id));
                                 
                             await _bot.SendTextMessageAsync(chatId, isSaved?"Subscribed!":"Cannot subscribe :( Try Again!");
                             return new UpdateHandlerResult(200);
