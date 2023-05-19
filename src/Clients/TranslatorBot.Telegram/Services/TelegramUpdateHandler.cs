@@ -10,12 +10,17 @@ namespace Sanet.Bots.Telegram.Services;
 public class TelegramUpdateHandler
 {
     private readonly IDatabaseService _databaseService;
+    private readonly ITranslatorService _translatorService;
     private readonly ILogger _log;
     private readonly TelegramBotClient _bot;
 
-    public TelegramUpdateHandler( string telegramBotToken, IDatabaseService databaseService,ILogger log)
+    public TelegramUpdateHandler( string telegramBotToken,
+        IDatabaseService databaseService,
+        ITranslatorService translatorService,
+        ILogger log)
     {
         _databaseService = databaseService;
+        _translatorService = translatorService;
         _log = log;
         _bot = new TelegramBotClient(telegramBotToken);
     }
@@ -80,10 +85,26 @@ public class TelegramUpdateHandler
                         
                         if (update.Message.Type == MessageType.Text)
                         {
-                            var subscriptions = await _databaseService.GetSubscriptionsForGroup(groupId);
+                            
+                            var subscriptions = (await _databaseService.GetSubscriptionsForGroup(groupId))
+                                .Where(s => s.UserId != update.Message.From.Id).ToList();
+
+                            if (subscriptions.Count == 0)
+                            {
+                                _log.LogInformation("No subscriptions");
+                                return new UpdateHandlerResult(200);
+                            }
+
+                            var messageToTranslate = new LanguageMessage(
+                                update.Message.From.FirstName,
+                                "nl-nl",
+                                "en-us",
+                                update.Message.Text
+                            );
+                            var translation = await _translatorService.TranslateMessage(messageToTranslate);
+                            
                             var tasks = subscriptions
-                                .Where(s => s.UserId != update.Message.From.Id)
-                                .Select(s => _bot.SendTextMessageAsync(s.ChatId, $"Message from {update.Message.From.FirstName}: {update.Message.Text}"));
+                                .Select(s => _bot.SendTextMessageAsync(s.ChatId, $"Message from {translation.Author}: {translation.Translation}"));
                             await Task.WhenAll(tasks);
                         }
                                                  
