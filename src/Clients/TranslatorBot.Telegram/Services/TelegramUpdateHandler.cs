@@ -11,16 +11,19 @@ public class TelegramUpdateHandler
 {
     private readonly IDatabaseService _databaseService;
     private readonly ITranslatorService _translatorService;
+    private readonly ITextAnalyticsService _textAnalyticsService;
     private readonly ILogger _log;
     private readonly TelegramBotClient _bot;
 
-    public TelegramUpdateHandler( string telegramBotToken,
+    public TelegramUpdateHandler(string telegramBotToken,
         IDatabaseService databaseService,
         ITranslatorService translatorService,
+        ITextAnalyticsService textAnalyticsService,
         ILogger log)
     {
         _databaseService = databaseService;
         _translatorService = translatorService;
+        _textAnalyticsService = textAnalyticsService;
         _log = log;
         _bot = new TelegramBotClient(telegramBotToken);
     }
@@ -95,10 +98,17 @@ public class TelegramUpdateHandler
                                 return new UpdateHandlerResult(200);
                             }
 
+                            var messageLanguage = await _textAnalyticsService.DetectLanguage(update.Message.Text);
+                            if (messageLanguage == "en")
+                            {
+                                _log.LogInformation("Don't translate from english");
+                                return new UpdateHandlerResult(200);
+                            }
+
                             var messageToTranslate = new LanguageMessage(
                                 update.Message.From.FirstName,
-                                "nl-nl",
-                                "en-us",
+                                messageLanguage.ToUpper(),
+                                "EN",
                                 update.Message.Text
                             );
                             var translation = await _translatorService.TranslateMessage(messageToTranslate);

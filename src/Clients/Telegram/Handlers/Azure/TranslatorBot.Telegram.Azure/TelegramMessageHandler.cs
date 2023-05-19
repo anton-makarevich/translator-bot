@@ -29,33 +29,18 @@ public static class TelegramMessageHandler
         {
             var update = JsonConvert.DeserializeObject<Update>(requestBody);
 
-            var telegramBotToken = Environment.GetEnvironmentVariable("TELEGRAM_BOT_TOKEN");
-            if (string.IsNullOrEmpty(telegramBotToken))
-            {
-                log.LogError("TELEGRAM_BOT_TOKEN is null");
-                return new InternalServerErrorResult();
-            }
-            var cosmosConnection = Environment.GetEnvironmentVariable("COSMOS_CONNECTION_STRING");
-            
-            if (string.IsNullOrEmpty(cosmosConnection))
-            {
-                log.LogError("COSMOS_CONNECTION_STRING is null");
-                return new InternalServerErrorResult();
-            }
-
-            var openAiToken = Environment.GetEnvironmentVariable("OPENAI_TOKEN");
-            
-            if (string.IsNullOrEmpty(openAiToken))
-            {
-                log.LogError("OPENAI_TOKEN");
-                return new InternalServerErrorResult();
-            }
+            var telegramBotToken =GetEnvironmentVariable("TELEGRAM_BOT_TOKEN",log);
+            var cosmosConnection = GetEnvironmentVariable("COSMOS_CONNECTION_STRING",log);
+            var openAiToken = GetEnvironmentVariable("OPENAI_TOKEN",log);
+            var azureLanguageServiceKey = GetEnvironmentVariable("LANGUAGE_SERVICE_KEY",log);
+            var azureLanguageServiceEndpoint = GetEnvironmentVariable("LANGUAGE_SERVICE_ENDPOINT",log);
             
             var translatorService = new GptTranslatorService(openAiToken, log);
-            
             var cosmosService = new CosmosService(cosmosConnection, log);
+            var azureLanguageService =
+                new AzureTextAnalyticsService(azureLanguageServiceKey, azureLanguageServiceEndpoint, log);
 
-            var updateHandler = new TelegramUpdateHandler(telegramBotToken,cosmosService, translatorService,log);
+            var updateHandler = new TelegramUpdateHandler(telegramBotToken,cosmosService, translatorService, azureLanguageService,log);
             var updateResult = await updateHandler.HandleUpdate(update);
 
             return updateResult.ToAzureActionResult(log);
@@ -65,5 +50,14 @@ public static class TelegramMessageHandler
             log.LogError(e,"{Message}", e.Message);
             return new InternalServerErrorResult();
         }
+    }
+    
+    public static string GetEnvironmentVariable(string variableName, ILogger log)
+    {
+        var value = Environment.GetEnvironmentVariable(variableName);
+
+        if (!string.IsNullOrEmpty(value)) return value;
+        log.LogError($"{variableName} is null");
+        throw  new ArgumentNullException(variableName);
     }
 }
