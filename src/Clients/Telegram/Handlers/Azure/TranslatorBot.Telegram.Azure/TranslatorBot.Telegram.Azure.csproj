@@ -5,6 +5,7 @@
         <RootNamespace>Sanet.Bots..Translator.Telegram.Azure</RootNamespace>
     </PropertyGroup>
     <ItemGroup>
+        <PackageReference Include="Azure.AI.OpenAI" Version="1.0.0-beta.5" />
         <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.33.0" />
         <PackageReference Include="Microsoft.NET.Sdk.Functions" Version="4.1.1" />
         <PackageReference Include="Telegram.Bot" Version="19.0.0" />

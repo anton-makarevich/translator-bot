@@ -43,9 +43,19 @@ public static class TelegramMessageHandler
                 return new InternalServerErrorResult();
             }
 
+            var openAiToken = Environment.GetEnvironmentVariable("OPENAI_TOKEN");
+            
+            if (string.IsNullOrEmpty(openAiToken))
+            {
+                log.LogError("OPENAI_TOKEN");
+                return new InternalServerErrorResult();
+            }
+            
+            var translatorService = new GptTranslatorService(openAiToken, log);
+            
             var cosmosService = new CosmosService(cosmosConnection, log);
 
-            var updateHandler = new TelegramUpdateHandler(telegramBotToken,cosmosService,log);
+            var updateHandler = new TelegramUpdateHandler(telegramBotToken,cosmosService, translatorService,log);
             var updateResult = await updateHandler.HandleUpdate(update);
 
             return updateResult.ToAzureActionResult(log);
